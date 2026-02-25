@@ -43,8 +43,8 @@ def main(page: ft.Page):
     filters = {"deposit": "Активен", "stock": "Активен"}
     selected_year = date.today().year
 
-    # --- ДИАЛОГ ДОБАВЛЕНИЯ НОВЫХ ЗАПИСЕЙ ---
-    add_dialog = ft.AlertDialog()
+    # --- ДИАЛОГ ДОБАВЛЕНИЯ НОВЫХ ЗАПИСЕЙ (ИСПРАВЛЕННЫЙ) ---
+    add_dialog = ft.AlertDialog(title=ft.Text("")) # Дали диалогу базовый пустой заголовок
     page.overlay.append(add_dialog)
 
     def show_add_dialog(e):
