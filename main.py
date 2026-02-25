@@ -1,9 +1,10 @@
 import flet as ft
 import sqlite3
+import shutil
 from datetime import date, datetime, timedelta
 import calendar
 
-# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ (ДЛЯ ПЕРВОГО ЗАПУСКА НА ТЕЛЕФОНЕ) ---
+# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
 def init_db():
     conn = sqlite3.connect("investments.db")
     cur = conn.cursor()
@@ -30,7 +31,6 @@ def execute_query(query, params=()):
     conn.close()
 
 def main(page: ft.Page):
-    # Запускаем проверку/создание базы данных при старте приложения
     init_db()
     
     page.title = "Мои Инвестиции"
@@ -43,6 +43,22 @@ def main(page: ft.Page):
     
     filters = {"deposit": "Активен", "stock": "Активен"}
     selected_year = date.today().year
+
+    # --- ИМПОРТ БАЗЫ ДАННЫХ (ФАЙЛОВЫЙ МЕНЕДЖЕР) ---
+    def on_db_picked(e: ft.FilePickerResultEvent):
+        if e.files:
+            try:
+                shutil.copy(e.files[0].path, "investments.db")
+                page.snack_bar = ft.SnackBar(ft.Text("✅ База данных успешно загружена!"), bgcolor=ft.Colors.GREEN_700, duration=3000)
+                page.snack_bar.open = True
+                load_tab(page.navigation_bar.selected_index)
+            except Exception as ex:
+                page.snack_bar = ft.SnackBar(ft.Text(f"❌ Ошибка: {ex}"), bgcolor=ft.Colors.RED_700, duration=4000)
+                page.snack_bar.open = True
+                page.update()
+
+    file_picker = ft.FilePicker(on_result=on_db_picked)
+    page.overlay.append(file_picker)
 
     # --- УНИВЕРСАЛЬНЫЙ ДИАЛОГ ВВОДА ---
     input_dialog = ft.AlertDialog(title=ft.Text(""), content=ft.TextField(keyboard_type=ft.KeyboardType.NUMBER))
@@ -62,7 +78,7 @@ def main(page: ft.Page):
         input_dialog.open = True
         page.update()
 
-    # --- ШТОРКА ДЕЙСТВИЙ (ДОЛГОЕ НАЖАТИЕ) ---
+    # --- ШТОРКА ДЕЙСТВИЙ ---
     action_sheet = ft.BottomSheet(content=ft.Container(padding=20, content=ft.Column(tight=True)))
     page.overlay.append(action_sheet)
 
@@ -168,10 +184,11 @@ def main(page: ft.Page):
 
         inf_input = ft.TextField(label="Инфляция (%)", value="0", keyboard_type=ft.KeyboardType.NUMBER, expand=True)
         years = [str(y) for y in range(2020, date.today().year + 5)]
-        year_dropdown = ft.Dropdown(options=[ft.dropdown.Option(y) for y in years], value=str(selected_year), width=100)
+        
+        # --- ИЗМЕНЕНИЕ: Ширина выпадающего списка увеличена до 150 ---
+        year_dropdown = ft.Dropdown(options=[ft.dropdown.Option(y) for y in years], value=str(selected_year), width=150)
 
         chart_container = ft.Container(height=200)
-        
         chart_info_text = ft.Text("Нажми на столбец", size=12, color=ft.Colors.WHITE54)
 
         def show_bar_info(m_name, nom, real):
@@ -233,6 +250,13 @@ def main(page: ft.Page):
     def load_tab(index):
         content_area.controls.clear()
         
+        import_btn = ft.IconButton(
+            icon=ft.Icons.FOLDER_OPEN, 
+            icon_color=ft.Colors.WHITE, 
+            tooltip="Импортировать базу (.db)",
+            on_click=lambda _: file_picker.pick_files(allowed_extensions=["db", "sqlite", "sqlite3"])
+        )
+        
         if index == 0:
             def set_dep_filter(status):
                 filters["deposit"] = status
@@ -243,7 +267,7 @@ def main(page: ft.Page):
                 ft.Button("Архив", style=ft.ButtonStyle(color=ft.Colors.WHITE if filters["deposit"] == "Завершен" else ft.Colors.WHITE54, bgcolor=ft.Colors.BLUE_700 if filters["deposit"] == "Завершен" else ft.Colors.TRANSPARENT), on_click=lambda e: set_dep_filter("Завершен")),
             ], alignment=ft.MainAxisAlignment.CENTER)
             
-            page.appbar = ft.AppBar(title=ft.Text("Вклады и ПИФы", weight=ft.FontWeight.BOLD), bgcolor=ft.Colors.BLUE_GREY_900)
+            page.appbar = ft.AppBar(title=ft.Text("Вклады и ПИФы", weight=ft.FontWeight.BOLD), bgcolor=ft.Colors.BLUE_GREY_900, actions=[import_btn])
             content_area.controls.append(btn_row)
             
             for r in get_data("SELECT id, name, bank, initial_sum, rate, start_date, taxes, status, term_months FROM deposits WHERE status=?", (filters["deposit"],)):
@@ -267,7 +291,7 @@ def main(page: ft.Page):
                 ft.Button("Архив", style=ft.ButtonStyle(color=ft.Colors.WHITE if filters["stock"] == "Продан" else ft.Colors.WHITE54, bgcolor=ft.Colors.BLUE_700 if filters["stock"] == "Продан" else ft.Colors.TRANSPARENT), on_click=lambda e: set_stk_filter("Продан")),
             ], alignment=ft.MainAxisAlignment.CENTER)
 
-            page.appbar = ft.AppBar(title=ft.Text("Акции и Металлы", weight=ft.FontWeight.BOLD), bgcolor=ft.Colors.BLUE_GREY_900)
+            page.appbar = ft.AppBar(title=ft.Text("Акции и Металлы", weight=ft.FontWeight.BOLD), bgcolor=ft.Colors.BLUE_GREY_900, actions=[import_btn])
             content_area.controls.append(btn_row)
 
             for r in get_data("SELECT id, name, type, quantity, initial_price_per_unit, current_price_per_unit, dividends, taxes, status, sell_price_total FROM stocks WHERE status=?", (filters["stock"],)):
@@ -283,12 +307,12 @@ def main(page: ft.Page):
                 content_area.controls.append(create_card(r[0], "stock", f"{r[1]}", f"Тип: {r[2]} | Кол-во: {r[3]} | Див: {divs}₽", cur_tot, f"{'+' if net>0 else ''}{net:,.0f} ₽", ft.Colors.GREEN_400 if net>0 else ft.Colors.RED_400, status=r[8]))
                 
         elif index == 2:
-            page.appbar = ft.AppBar(title=ft.Text("Валюта", weight=ft.FontWeight.BOLD), bgcolor=ft.Colors.BLUE_GREY_900)
+            page.appbar = ft.AppBar(title=ft.Text("Валюта", weight=ft.FontWeight.BOLD), bgcolor=ft.Colors.BLUE_GREY_900, actions=[import_btn])
             for r in get_data("SELECT id, currency_code, place, amount, rub_rate FROM currency"):
                 content_area.controls.append(create_card(r[0], "currency", f"{r[1]}", f"Где: {r[2]} | Курс: {r[4]}", r[3] * r[4], f"{r[3]:,.0f} {r[1]}"))
                 
         elif index == 3:
-            page.appbar = ft.AppBar(title=ft.Text("Аналитика", weight=ft.FontWeight.BOLD), bgcolor=ft.Colors.BLUE_GREY_900)
+            page.appbar = ft.AppBar(title=ft.Text("Аналитика", weight=ft.FontWeight.BOLD), bgcolor=ft.Colors.BLUE_GREY_900, actions=[import_btn])
             build_analytics()
 
         page.update()
