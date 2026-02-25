@@ -1,0 +1,32 @@
+name: Build Android APK
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Скачиваем твой код
+        uses: actions/checkout@v4
+
+      - name: Настраиваем Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Устанавливаем библиотеку Flet
+        run: pip install flet
+
+      - name: Настраиваем Flutter (магия Google)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Собираем APK-файл
+        run: flet build apk
+
+      - name: Сохраняем готовый файл для скачивания
+        uses: actions/upload-artifact@v4
+        with:
+          name: InvestApp-APK
+          path: build/apk/app-release.apk
