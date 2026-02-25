@@ -43,6 +43,76 @@ def main(page: ft.Page):
     filters = {"deposit": "Активен", "stock": "Активен"}
     selected_year = date.today().year
 
+    # --- ДИАЛОГ ДОБАВЛЕНИЯ НОВЫХ ЗАПИСЕЙ ---
+    add_dialog = ft.AlertDialog()
+    page.overlay.append(add_dialog)
+
+    def show_add_dialog(e):
+        idx = page.navigation_bar.selected_index
+        
+        if idx == 0:
+            add_dialog.title = ft.Text("Новый вклад / ПИФ")
+            f_type = ft.Dropdown(options=[ft.dropdown.Option("Вклад"), ft.dropdown.Option("ПИФ")], value="Вклад", label="Тип")
+            f_name = ft.TextField(label="Название")
+            f_bank = ft.TextField(label="Банк / Брокер")
+            f_sum = ft.TextField(label="Сумма (₽)", keyboard_type=ft.KeyboardType.NUMBER)
+            f_rate = ft.TextField(label="Ставка (%)", keyboard_type=ft.KeyboardType.NUMBER, value="0")
+            f_term = ft.TextField(label="Срок (мес)", keyboard_type=ft.KeyboardType.NUMBER, value="12")
+            
+            def save_dep(e):
+                try:
+                    execute_query("INSERT INTO deposits (type, name, bank, initial_sum, rate, term_months, start_date, status) VALUES (?,?,?,?,?,?,?,'Активен')", 
+                                  (f_type.value, f_name.value, f_bank.value, float(f_sum.value.replace(',','.')), float(f_rate.value.replace(',','.')), int(f_term.value), str(date.today())))
+                    add_dialog.open = False
+                    load_tab(0)
+                except Exception: pass
+
+            add_dialog.content = ft.Column([f_type, f_name, f_bank, f_sum, f_rate, f_term], tight=True, scroll=ft.ScrollMode.ADAPTIVE, height=350)
+            add_dialog.actions = [ft.TextButton("Сохранить", on_click=save_dep)]
+
+        elif idx == 1:
+            add_dialog.title = ft.Text("Новый актив")
+            f_type = ft.Dropdown(options=[ft.dropdown.Option("Акция"), ft.dropdown.Option("Металл")], value="Акция", label="Тип")
+            f_name = ft.TextField(label="Тикер / Название")
+            f_qty = ft.TextField(label="Количество", keyboard_type=ft.KeyboardType.NUMBER)
+            f_buy_price = ft.TextField(label="Цена покупки (за шт)", keyboard_type=ft.KeyboardType.NUMBER)
+            f_cur_price = ft.TextField(label="Текущая цена (за шт)", keyboard_type=ft.KeyboardType.NUMBER)
+            
+            def save_stock(e):
+                try:
+                    execute_query("INSERT INTO stocks (type, name, quantity, initial_price_per_unit, current_price_per_unit, status) VALUES (?,?,?,?,?,'Активен')", 
+                                  (f_type.value, f_name.value, float(f_qty.value.replace(',','.')), float(f_buy_price.value.replace(',','.')), float(f_cur_price.value.replace(',','.'))))
+                    add_dialog.open = False
+                    load_tab(1)
+                except Exception: pass
+
+            add_dialog.content = ft.Column([f_type, f_name, f_qty, f_buy_price, f_cur_price], tight=True, scroll=ft.ScrollMode.ADAPTIVE, height=350)
+            add_dialog.actions = [ft.TextButton("Сохранить", on_click=save_stock)]
+
+        elif idx == 2:
+            add_dialog.title = ft.Text("Новая валюта")
+            f_code = ft.TextField(label="Код (USD, EUR, CNY)")
+            f_place = ft.TextField(label="Где хранится?")
+            f_amount = ft.TextField(label="Сумма", keyboard_type=ft.KeyboardType.NUMBER)
+            f_rate = ft.TextField(label="Курс (₽)", keyboard_type=ft.KeyboardType.NUMBER)
+            
+            def save_cur(e):
+                try:
+                    execute_query("INSERT INTO currency (currency_code, place, amount, rub_rate, date_added) VALUES (?,?,?,?,?)", 
+                                  (f_code.value.upper(), f_place.value, float(f_amount.value.replace(',','.')), float(f_rate.value.replace(',','.')), str(date.today())))
+                    add_dialog.open = False
+                    load_tab(2)
+                except Exception: pass
+
+            add_dialog.content = ft.Column([f_code, f_place, f_amount, f_rate], tight=True, scroll=ft.ScrollMode.ADAPTIVE, height=300)
+            add_dialog.actions = [ft.TextButton("Сохранить", on_click=save_cur)]
+
+        add_dialog.open = True
+        page.update()
+
+    # Круглая кнопка плюсика в нижнем углу
+    page.floating_action_button = ft.FloatingActionButton(icon=ft.Icons.ADD, on_click=show_add_dialog, bgcolor=ft.Colors.BLUE_600)
+
     # --- УНИВЕРСАЛЬНЫЙ ДИАЛОГ ВВОДА ---
     input_dialog = ft.AlertDialog(title=ft.Text(""), content=ft.TextField(keyboard_type=ft.KeyboardType.NUMBER))
     page.overlay.append(input_dialog)
@@ -168,7 +238,6 @@ def main(page: ft.Page):
         inf_input = ft.TextField(label="Инфляция (%)", value="0", keyboard_type=ft.KeyboardType.NUMBER, expand=True)
         years = [str(y) for y in range(2020, date.today().year + 5)]
         
-        # Широкий dropdown для года (150 пикселей)
         year_dropdown = ft.Dropdown(options=[ft.dropdown.Option(y) for y in years], value=str(selected_year), width=150)
 
         chart_container = ft.Container(height=200)
@@ -232,6 +301,9 @@ def main(page: ft.Page):
     # --- ЛОГИКА ПЕРЕКЛЮЧЕНИЯ ВЛАДОК И АРХИВОВ ---
     def load_tab(index):
         content_area.controls.clear()
+        
+        # Скрываем кнопку "+" на вкладке Аналитики (индекс 3)
+        page.floating_action_button.visible = (index != 3)
         
         if index == 0:
             def set_dep_filter(status):
