@@ -45,8 +45,11 @@ def main(page: ft.Page):
     selected_year = date.today().year
 
     # --- ИМПОРТ БАЗЫ ДАННЫХ (ФАЙЛОВЫЙ МЕНЕДЖЕР) ---
-    def on_db_picked(e: ft.FilePickerResultEvent):
-        if e.files:
+    file_picker = ft.FilePicker()
+    page.overlay.append(file_picker)
+
+    def on_db_picked(e):
+        if e.files and len(e.files) > 0:
             try:
                 shutil.copy(e.files[0].path, "investments.db")
                 page.snack_bar = ft.SnackBar(ft.Text("✅ База данных успешно загружена!"), bgcolor=ft.Colors.GREEN_700, duration=3000)
@@ -57,8 +60,8 @@ def main(page: ft.Page):
                 page.snack_bar.open = True
                 page.update()
 
-    file_picker = ft.FilePicker(on_result=on_db_picked)
-    page.overlay.append(file_picker)
+    # ЖЕЛЕЗОБЕТОННОЕ НАЗНАЧЕНИЕ (ВНЕ СКОБОК)
+    file_picker.on_result = on_db_picked
 
     # --- УНИВЕРСАЛЬНЫЙ ДИАЛОГ ВВОДА ---
     input_dialog = ft.AlertDialog(title=ft.Text(""), content=ft.TextField(keyboard_type=ft.KeyboardType.NUMBER))
@@ -185,7 +188,6 @@ def main(page: ft.Page):
         inf_input = ft.TextField(label="Инфляция (%)", value="0", keyboard_type=ft.KeyboardType.NUMBER, expand=True)
         years = [str(y) for y in range(2020, date.today().year + 5)]
         
-        # --- ИЗМЕНЕНИЕ: Ширина выпадающего списка увеличена до 150 ---
         year_dropdown = ft.Dropdown(options=[ft.dropdown.Option(y) for y in years], value=str(selected_year), width=150)
 
         chart_container = ft.Container(height=200)
